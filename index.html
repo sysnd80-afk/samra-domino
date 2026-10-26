@@ -101,7 +101,7 @@ h2{margin:6px 0 12px;text-align:center;color:var(--gold)}
     <div id="waitBox" class="col" hidden>
       <div class="hint">أعطيها هذا الرقم لتدخل</div>
       <div class="code" id="roomCode"></div>
-      <div class="hint">بانتظار دخولها…</div>
+      <div class="hint">بانتظار دخولها… لا تطلع من التطبيق لين تدخل</div>
     </div>
     <div class="hint">— أو —</div>
     <input id="codeIn" inputmode="numeric" placeholder="رقم الغرفة" maxlength="5">
@@ -460,7 +460,7 @@ function cleanupNet(){
   try{callObj&&callObj.close()}catch(e){}
   try{conn&&conn.close()}catch(e){}
   try{peer&&peer.destroy()}catch(e){}
-  peer=conn=callObj=null;role='';
+  peer=conn=callObj=null;role='';try{wake&&wake.release()}catch(e){}wake=null;
   remoteAudio.srcObject=null;
   if(localStream){localStream.getTracks().forEach(t=>t.stop());localStream=null}
   micOn=true;$('#btnMic').textContent='🎙️';$('#btnMic').hidden=true;
@@ -496,28 +496,40 @@ function broadcast(){
   conn.send({t:'state',s});
 }
 const genCode=()=>String(10000+Math.random()*89999|0);
+let wake=null;
+async function keepAwake(){try{if(navigator.wakeLock&&!wake){wake=await navigator.wakeLock.request('screen');wake.addEventListener('release',()=>{wake=null})}}catch(e){}}
+function netAlive(){if(peer&&!peer.destroyed&&peer.disconnected){try{peer.reconnect()}catch(e){}}if(role)keepAwake()}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)netAlive()});
+setInterval(()=>{if(peer)netAlive()},4000);
 async function createRoom(){
   cleanupNet();role='host';
-  await getMic();
+  await getMic();keepAwake();
   const code=genCode();
   peer=new Peer('smr'+code);
   peer.on('open',()=>{$('#roomCode').textContent=code;$('#waitBox').hidden=false});
-  peer.on('error',e=>{if(e.type==='unavailable-id')createRoom();else toast('مشكلة بالاتصال: '+e.type)});
+  peer.on('disconnected',()=>{try{peer.reconnect()}catch(e){}});
+  peer.on('error',e=>{if(e.type==='unavailable-id')createRoom();else if(e.type!=='peer-unavailable')toast('مشكلة بالاتصال: '+e.type)});
   peer.on('connection',c=>{if(conn){c.close();return}conn=c;wireConn()});
 }
+const normCode=v=>String(v).replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/\D/g,'');
 async function joinRoom(code){
   cleanupNet();role='guest';mode='guest';seat=1;lastKey='';
-  await getMic();
+  await getMic();keepAwake();
+  let tries=0;
+  const dial=()=>{conn=peer.connect('smr'+code,{reliable:true});wireConn()};
   peer=new Peer();
-  peer.on('open',()=>{
-    conn=peer.connect('smr'+code,{reliable:true});wireConn();
-    setTimeout(()=>{if(conn&&!conn.open)toast('ما لگيت الغرفة — تأكد من الرقم')},12000);
-  });
+  peer.on('open',dial);
+  peer.on('disconnected',()=>{try{peer.reconnect()}catch(e){}});
   peer.on('call',c=>{c.answer(localStream);wireCall(c)});
-  peer.on('error',e=>toast(e.type==='peer-unavailable'?'ما لگيت الغرفة — تأكد من الرقم':'مشكلة بالاتصال: '+e.type));
+  peer.on('error',e=>{
+    if(e.type==='peer-unavailable'){
+      if(++tries<4){toast('أحاول أوصل للغرفة…');setTimeout(()=>{if(peer&&!peer.destroyed)dial()},2500)}
+      else toast('ما لگيت الغرفة — خلي صاحب الغرفة يبقى فاتح التطبيق وتأكد من الرقم');
+    }else toast('مشكلة بالاتصال: '+e.type);
+  });
 }
 $('#btnCreate').onclick=createRoom;
-$('#btnJoin').onclick=()=>{const c=$('#codeIn').value.trim();if(c.length<5)return toast('اكتب رقم الغرفة (5 أرقام)');joinRoom(c)};
+$('#btnJoin').onclick=()=>{const c=normCode($('#codeIn').value);if(c.length<5)return toast('اكتب رقم الغرفة (5 أرقام)');joinRoom(c)};
 
 homeRefresh();
 </script>
