@@ -13,7 +13,7 @@
 <style>
 :root{--bg:#0d1311;--bg2:#17251f;--gold:#cdaa62;--gold2:#a68443;--ink:#ece6d6;--card:rgba(236,230,214,.06);--line:rgba(205,170,98,.28)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:"Segoe UI",Tahoma,system-ui,sans-serif;overscroll-behavior:none}
+html,body{margin:0;height:100%;-webkit-text-size-adjust:100%;text-size-adjust:100%;background:var(--bg);color:var(--ink);font-family:"Segoe UI",Tahoma,system-ui,sans-serif;overscroll-behavior:none}
 body{background:radial-gradient(ellipse at 50% 20%,var(--bg2),var(--bg) 75%);padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 .screen{display:none;height:100dvh;flex-direction:column;padding:14px;max-width:720px;margin:0 auto}
 .screen.active{display:flex}
@@ -45,7 +45,7 @@ h2{margin:6px 0 12px;text-align:center;color:var(--gold)}
 .sm{padding:8px 12px;border-radius:12px}
 .score{text-align:center;font-size:.95rem;margin:8px 0;opacity:.95}
 #boardWrap{flex:1;min-height:130px;perspective:900px;perspective-origin:50% 0%;display:flex;border-radius:22px;background:#0a0f0d;padding:7px;box-shadow:0 10px 24px rgba(0,0,0,.6),inset 0 0 0 2px #3a2c14,inset 0 0 0 4px #8a6d34,inset 0 0 0 6px #2a1f0c;overflow:hidden}
-#board{flex:1;overflow:auto;display:flex;flex-wrap:wrap;align-content:center;align-items:center;justify-content:center;gap:3px;direction:ltr;border-radius:16px;padding:14px 10px;--s:clamp(24px,7vw,36px);
+#board{flex:1;overflow:auto;display:flex;flex-wrap:wrap;align-content:center;align-items:center;justify-content:center;gap:3px;direction:ltr;border-radius:16px;padding:14px 10px;--s:clamp(28px,8.5vw,40px);
  background:radial-gradient(ellipse at 50% 40%,#2f5a4b,#1d3d33 55%,#122a22),#1d3d33;box-shadow:inset 0 0 40px rgba(0,0,0,.65);transform:rotateX(14deg);transform-origin:50% 100%}
 .status{text-align:center;min-height:2.6em;padding:6px;font-weight:700;color:var(--gold)}
 .actions{display:flex;gap:10px;justify-content:center;min-height:52px;align-items:center}
@@ -53,8 +53,8 @@ h2{margin:6px 0 12px;text-align:center;color:var(--gold)}
 .tile{display:flex;flex:none;align-self:center;border-radius:9px;position:relative;
  background:linear-gradient(145deg,#fbf6e8 0%,#efe6cf 55%,#d9cdaf 100%);
  box-shadow:0 1px 0 #cfc3a4,0 2px 0 #c2b690,0 3px 0 #a99c78,0 4px 0 #8f8462,0 8px 10px rgba(0,0,0,.55),inset 0 1px 1px #fff,inset 0 -2px 3px rgba(120,100,60,.25)}
-.tile.h{flex-direction:row}.tile.v{flex-direction:column}
-.half{width:var(--s);height:var(--s);display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:14%;position:relative}
+.tile.h{flex-direction:row;width:calc(var(--s)*2);height:var(--s)}.tile.v{flex-direction:column;width:var(--s);height:calc(var(--s)*2)}
+.half{flex:1;min-width:0;min-height:0;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:14%;position:relative}
 .tile.h .half:first-child{border-right:2px solid rgba(110,92,55,.45);box-shadow:1px 0 0 rgba(255,255,255,.7)}
 .tile.v .half:first-child{border-bottom:2px solid rgba(110,92,55,.45);box-shadow:0 1px 0 rgba(255,255,255,.7)}
 .p{width:78%;height:78%;margin:auto;border-radius:50%;background:radial-gradient(circle at 38% 32%,#4a4a4a,#101010 70%);box-shadow:inset 0 2px 3px rgba(0,0,0,.9),0 1px 0 rgba(255,255,255,.8)}
@@ -83,6 +83,7 @@ h2{margin:6px 0 12px;text-align:center;color:var(--gold)}
     <button id="btnOnline">💞 العب مع حبيبتي + دردشة صوتية 🎙️</button>
     <button id="btnInstall" class="alt" hidden>📲 ثبّت التطبيق على الجهاز</button>
     <p class="hint" id="stats"></p>
+    <p class="hint" style="font-size:.7rem">النسخة 8</p>
     <p class="hint">للتثبيت: من متصفح الموبايل اختار "إضافة إلى الشاشة الرئيسية" (آيفون: زر المشاركة ← إضافة للشاشة الرئيسية)</p>
   </div>
 </section>
@@ -182,7 +183,14 @@ $('#btnResume').onclick=()=>{
 let deferred;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;$('#btnInstall').hidden=false});
 $('#btnInstall').onclick=async()=>{if(!deferred)return;deferred.prompt();await deferred.userChoice;deferred=null;$('#btnInstall').hidden=true};
-if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
+  const hadCtl=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(!hadCtl)return;
+    if($('#home').classList.contains('active'))location.reload();else toast('فيه تحديث — سكّر التطبيق وافتحه من جديد');
+  });
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
 
 /* ---------- game logic (runs on host / vs AI) ---------- */
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a}
